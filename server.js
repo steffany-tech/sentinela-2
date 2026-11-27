@@ -8,7 +8,8 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
-app.use(express.static(path.join(__dirname, "../frontend")));
+// The HTML files are stored alongside server.js in this repository.
+app.use(express.static(__dirname));
 
 const DB_FILE = path.join(__dirname, "db.json");
 
@@ -156,7 +157,7 @@ app.get("/triagens", (req, res) => {
   res.json(db.triagens);
 });
 
-// IMPLEMENTADO: rota com lista fixa de medicações
+// Lista fixa de medicações
 app.get("/lista-medicacoes", (req, res) => {
   res.json([
     "Dipirona",
@@ -197,7 +198,7 @@ app.get("/medicacoes", (req, res) => {
   res.json(db.consultas);
 });
 
-// START
-app.listen(3000, () => {
-  console.log("🏥 Hospital Pro rodando em http://localhost:3000");
+const port = process.env.PORT || 3000;
+app.listen(port, () => {
+  console.log(`🏥 Hospital Pro rodando na porta ${port}`);
 });
