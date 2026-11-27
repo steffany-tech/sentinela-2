@@ -1,53 +1,80 @@
 <!DOCTYPE html>
-<html>
+<html lang="pt-BR">
 <head>
-<link rel="stylesheet" href="css/style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0f766e">
+  <title>Sistema Hospitalar</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="stylesheet" href="/css/style.css">
 </head>
-
 <body>
+  <main class="container login-container">
+    <div class="brand-icon" aria-hidden="true">✚</div>
+    <p class="eyebrow">Acesso seguro</p>
+    <h1>Sistema Hospitalar</h1>
+    <p class="subtitle">Entre com seus dados para continuar.</p>
 
-<div class="container">
-  <h2>🏥 Sistema Hospitalar 🦤</h2>
+    <form id="formLogin">
+      <label for="usuario">Usuário</label>
+      <input id="usuario" name="usuario" type="text" placeholder="Seu usuário" autocomplete="username" required>
 
-  <input id="usuario" placeholder="Usuário">
-  <input id="senha" type="password" placeholder="Senha">
+      <label for="senha">Senha</label>
+      <input id="senha" name="senha" type="password" placeholder="Sua senha" autocomplete="current-password" required>
 
-  <button onclick="login()">Entrar</button>
-</div>
+      <p id="mensagem" class="message" role="status" aria-live="polite"></p>
+      <button id="botaoEntrar" type="submit">Entrar</button>
+    </form>
+  </main>
 
-<script>
-function login() {
-  fetch("http://localhost:3000/login", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      usuario: usuario.value,
-      senha: senha.value
-    })
-  })
-  .then(r => r.json())
-  .then(data => {
-    if (data.tipo === "triagem")
-      location.href = "triagem.html";
+  <script>
+    const formLogin = document.getElementById("formLogin");
+    const mensagem = document.getElementById("mensagem");
+    const botaoEntrar = document.getElementById("botaoEntrar");
 
-    if (data.tipo === "medico")
-      location.href = "medico.html";
+    formLogin.addEventListener("submit", async event => {
+      event.preventDefault();
+      mensagem.textContent = "";
+      botaoEntrar.disabled = true;
+      botaoEntrar.textContent = "Entrando…";
 
-    if (data.tipo === "atendimento")
-      location.href = "atendimento.html";
-  });
-}
+      try {
+        const resposta = await fetch("/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            usuario: document.getElementById("usuario").value.trim(),
+            senha: document.getElementById("senha").value
+          })
+        });
+        const dados = await resposta.json();
+        if (!resposta.ok) throw new Error(dados.erro || "Não foi possível entrar.");
 
-//Atalho secreto: Ctrl+ Alt + A redireciona para admin.html
-window.addEventListener("keydown", function(e){
-  if (e.ctrlKey && (e.key === "a" || e.key === "A")){
-    e.preventDefault();
-    window.location.href = "admin.html"
-  }
-});
-</script>
+        const destinos = {
+          triagem: "triagem.html",
+          medico: "medico.html",
+          atendimento: "atendimento.html",
+          almoxarifado: "almoxerifado.html",
+          admin: "admin.html"
+        };
+        const destino = destinos[dados.tipo];
+        if (!destino) throw new Error("Perfil de usuário não reconhecido.");
+        window.location.href = destino;
+      } catch (erro) {
+        mensagem.textContent = erro.message || "Erro de conexão. Tente novamente.";
+      } finally {
+        botaoEntrar.disabled = false;
+        botaoEntrar.textContent = "Entrar";
+      }
+    });
 
+    // Atalho de manutenção: Ctrl + Alt + A abre a administração.
+    window.addEventListener("keydown", event => {
+      if (event.ctrlKey && event.altKey && event.key.toLowerCase() === "a") {
+        event.preventDefault();
+        window.location.href = "admin.html";
+      }
+    });
+  </script>
 </body>
 </html>

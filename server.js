@@ -8,7 +8,12 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
-// The HTML files are stored alongside server.js in this repository.
+// Avoid a missing /favicon.ico request from browsers that do not honor the SVG link.
+app.get("/favicon.ico", (req, res) => {
+  res.type("image/svg+xml").sendFile(path.join(__dirname, "favicon.svg"));
+});
+
+// The HTML and static assets are stored in the repository root.
 app.use(express.static(__dirname));
 
 const DB_FILE = path.join(__dirname, "db.json");
