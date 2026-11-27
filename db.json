@@ -16,6 +16,11 @@
       "tipo": "atendimento"
     },
     {
+      "usuario": "admin",
+      "senha": "123",
+      "tipo": "admin"
+    },
+    {
       "id": 1792588895599,
       "usuario": "ste",
       "senha": "123",
