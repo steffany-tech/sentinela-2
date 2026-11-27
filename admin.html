@@ -3,129 +3,80 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Administração de usuários</title>
+  <meta name="theme-color" content="#0f766e">
+  <title>Sistema Hospitalar</title>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="stylesheet" href="/css/style.css">
-  <style>
-    body { display: block; }
-    .container { max-width: 950px; margin: 32px auto; }
-    .top-actions, .user-actions { display: flex; flex-wrap: wrap; gap: 10px; }
-    .user-card { border: 1px solid #e2e8f0; border-left: 4px solid #0f766e; border-radius: 10px; padding: 16px; margin: 12px 0; background: #f8fafc; }
-    .user-card strong { display: inline-block; margin-right: 10px; }
-    #mensagem { min-height: 22px; }
-  </style>
 </head>
 <body>
-  <main class="container">
-    <div class="top-actions">
-      <button type="button" onclick="irAlmoxarifado()">Acessar almoxarifado</button>
-      <button type="button" onclick="sair()">Sair</button>
-    </div>
-    <h1>Administração de usuários</h1>
-    <form id="formUsuario">
-      <label for="usuario">Usuário (login)</label>
-      <input type="text" id="usuario" minlength="3" maxlength="40" pattern="[A-Za-z0-9._-]+" autocomplete="off" required>
+  <main class="container login-container">
+    <div class="brand-icon" aria-hidden="true">✚</div>
+    <p class="eyebrow">Acesso seguro</p>
+    <h1>Sistema Hospitalar</h1>
+    <p class="subtitle">Entre com seus dados para continuar.</p>
+
+    <form id="formLogin">
+      <label for="usuario">Usuário</label>
+      <input id="usuario" name="usuario" type="text" placeholder="Seu usuário" autocomplete="username" required>
       <label for="senha">Senha</label>
-      <input type="password" id="senha" autocomplete="new-password" required>
-      <label for="tipo">Perfil</label>
-      <select id="tipo" required>
-        <option value="">Selecione o perfil</option>
-        <option value="almoxarifado">Almoxarifado</option>
-        <option value="atendimento">Atendimento</option>
-        <option value="triagem">Triagem</option>
-        <option value="medico">Médico</option>
-        <option value="admin">Administrador</option>
-      </select>
-      <button type="submit">Cadastrar usuário</button>
+      <input id="senha" name="senha" type="password" placeholder="Sua senha" autocomplete="current-password" required>
+      <p id="mensagem" class="message" role="status" aria-live="polite"></p>
+      <button id="botaoEntrar" type="submit">Entrar</button>
     </form>
-    <p id="mensagem" role="status" aria-live="polite"></p>
-    <hr>
-    <h2>Usuários cadastrados</h2>
-    <div id="listaUsuarios" aria-live="polite"></div>
   </main>
+
   <script>
-    let usuarioAtual = {};
-    try {
-      usuarioAtual = JSON.parse(sessionStorage.getItem("hospitalar_user") || "{}");
-    } catch (erro) {
-      console.error("Dados da sessão inválidos:", erro);
-    }
+    const formLogin = document.getElementById("formLogin");
+    const mensagem = document.getElementById("mensagem");
+    const botaoEntrar = document.getElementById("botaoEntrar");
 
-    // Accept the signed-in profile stored by login; keep direct access to public pages unaffected.
-    if (usuarioAtual.tipo !== "admin") {
-      window.location.replace("index.html");
-    } else {
-      carregarUsuarios();
-    }
-
-    function informar(texto, erro = false) {
-      const mensagem = document.getElementById("mensagem");
-      mensagem.textContent = texto;
-      mensagem.style.color = erro ? "#b91c1c" : "#047857";
-    }
-
-    async function requisicao(url, opcoes = {}) {
-      const resposta = await fetch(url, {
-        ...opcoes,
-        headers: { "Content-Type": "application/json", ...(opcoes.headers || {}) }
-      });
-      const dados = await resposta.json();
-      if (!resposta.ok) throw new Error(dados.erro || `Erro HTTP ${resposta.status}`);
-      return dados;
-    }
-
-    document.getElementById("formUsuario").addEventListener("submit", async event => {
+    formLogin.addEventListener("submit", async event => {
       event.preventDefault();
-      const usuario = document.getElementById("usuario").value.trim();
-      const senha = document.getElementById("senha").value;
-      const tipo = document.getElementById("tipo").value;
+      mensagem.textContent = "";
+      botaoEntrar.disabled = true;
+      botaoEntrar.textContent = "Entrando…";
+
       try {
-        await requisicao("/usuarios", {
+        const resposta = await fetch("/login", {
           method: "POST",
-          body: JSON.stringify({ usuario, senha, tipo })
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            usuario: document.getElementById("usuario").value.trim(),
+            senha: document.getElementById("senha").value
+          })
         });
-        event.currentTarget.reset();
-        informar("Usuário cadastrado com sucesso.");
-        await carregarUsuarios();
+        const dados = await resposta.json();
+        if (!resposta.ok) throw new Error(dados.erro || "Não foi possível entrar.");
+
+        const destinos = {
+          triagem: "triagem.html",
+          medico: "medico.html",
+          atendimento: "atendimento.html",
+          almoxarifado: "almoxerifado.html",
+          admin: "admin.html"
+        };
+        const destino = destinos[dados.tipo];
+        if (!destino) throw new Error("Perfil de usuário não reconhecido.");
+
+        // Keep the authenticated profile available to pages that verify permissions.
+        sessionStorage.setItem("hospitalar_user", JSON.stringify(dados));
+        sessionStorage.setItem("hospitalar_token", `sessao-${Date.now()}`);
+        localStorage.setItem("hospitalar_user", JSON.stringify(dados));
+        window.location.assign(destino);
       } catch (erro) {
-        informar(`Erro ao cadastrar usuário: ${erro.message}`, true);
+        mensagem.textContent = erro.message || "Erro de conexão. Tente novamente.";
+      } finally {
+        botaoEntrar.disabled = false;
+        botaoEntrar.textContent = "Entrar";
       }
     });
 
-    async function carregarUsuarios() {
-      const lista = document.getElementById("listaUsuarios");
-      try {
-        const usuarios = await requisicao("/usuarios");
-        lista.replaceChildren();
-        if (!usuarios.length) {
-          lista.textContent = "Nenhum usuário cadastrado.";
-          return;
-        }
-        usuarios.forEach(item => {
-          const card = document.createElement("div");
-          card.className = "user-card";
-          const nome = document.createElement("strong");
-          nome.textContent = item.usuario;
-          const perfil = document.createElement("span");
-          perfil.textContent = `Perfil: ${item.tipo}`;
-          card.append(nome, perfil);
-          lista.appendChild(card);
-        });
-      } catch (erro) {
-        lista.textContent = `Erro ao carregar usuários: ${erro.message}`;
+    window.addEventListener("keydown", event => {
+      if (event.ctrlKey && event.altKey && event.key.toLowerCase() === "a") {
+        event.preventDefault();
+        window.location.assign("admin.html");
       }
-    }
-
-    function irAlmoxarifado() {
-      window.location.assign("almoxerifado.html");
-    }
-
-    function sair() {
-      sessionStorage.removeItem("hospitalar_token");
-      sessionStorage.removeItem("hospitalar_user");
-      localStorage.removeItem("hospitalar_user");
-      window.location.replace("index.html");
-    }
+    });
   </script>
 </body>
 </html>
