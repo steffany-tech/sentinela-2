@@ -1,349 +1,131 @@
-
 <!DOCTYPE html>
-<html lang="en">
+<html lang="pt-BR">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
-    <link rel="stylesheet" href="cadastro.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Administração de usuários</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    body { display: block; }
+    .container { max-width: 950px; margin: 32px auto; }
+    .top-actions, .user-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+    .user-card { border: 1px solid #e2e8f0; border-left: 4px solid #0f766e; border-radius: 10px; padding: 16px; margin: 12px 0; background: #f8fafc; }
+    .user-card strong { display: inline-block; margin-right: 10px; }
+    #mensagem { min-height: 22px; }
+  </style>
 </head>
 <body>
-    <div class="container">
-        <a href="index.html" style="text-decoration: none; color: #3498db; font-size: 14px; display: inline-block; margin-bottom: 12px;"> Voltar para o Login</a>
-        <h2>Cadastrar Usuário</h2>
-
-        <form id="formUsuario">
-            <input type="text" id="usuario" placeholder="Nome do Usuário(Login)" required>
-            <input type="password" id="senha" placeholder="senha" required>
-
-            <select id="tipo" required>
-                <option value="">Selecione o Setor</option>
-                <option value="atendimento">Atendimento</option>
-                <option value="triagem">Triagem</option>
-                <option value="medico">Médico</option>
-            </select>
-
-            <button type="submit">Cadastrar Usuário</button>
-        </form>
-
-        <hr style="margin: 25px 0; border: none; border-top: 1px solid #ccc;">
-        <h3>Usuários Cadastrados</h3>
-
-        <div id="listarUsuarios"></div>
+  <main class="container">
+    <div class="top-actions">
+      <button type="button" onclick="irAlmoxarifado()">Acessar almoxarifado</button>
+      <button type="button" onclick="sair()">Sair</button>
     </div>
+    <h1>Administração de usuários</h1>
+    <form id="formUsuario">
+      <label for="usuario">Usuário (login)</label>
+      <input type="text" id="usuario" minlength="3" maxlength="40" pattern="[A-Za-z0-9._-]+" autocomplete="off" required>
+      <label for="senha">Senha</label>
+      <input type="password" id="senha" autocomplete="new-password" required>
+      <label for="tipo">Perfil</label>
+      <select id="tipo" required>
+        <option value="">Selecione o perfil</option>
+        <option value="almoxarifado">Almoxarifado</option>
+        <option value="atendimento">Atendimento</option>
+        <option value="triagem">Triagem</option>
+        <option value="medico">Médico</option>
+        <option value="admin">Administrador</option>
+      </select>
+      <button type="submit">Cadastrar usuário</button>
+    </form>
+    <p id="mensagem" role="status" aria-live="polite"></p>
+    <hr>
+    <h2>Usuários cadastrados</h2>
+    <div id="listaUsuarios" aria-live="polite"></div>
+  </main>
+  <script>
+    let usuarioAtual = {};
+    try {
+      usuarioAtual = JSON.parse(sessionStorage.getItem("hospitalar_user") || "{}");
+    } catch (erro) {
+      console.error("Dados da sessão inválidos:", erro);
+    }
 
-    <script>
-        // 1. Cadastrar usuário ao enviar o formulário
-        document.getElementById("formUsuario").addEventListener("submit", function(e) {
-            e.preventDefault();
+    // Accept the signed-in profile stored by login; keep direct access to public pages unaffected.
+    if (usuarioAtual.tipo !== "admin") {
+      window.location.replace("index.html");
+    } else {
+      carregarUsuarios();
+    }
 
-            const usuario = document.getElementById("usuario").value;
-            const senha = document.getElementById("senha").value;
-            const tipo = document.getElementById("tipo").value;
+    function informar(texto, erro = false) {
+      const mensagem = document.getElementById("mensagem");
+      mensagem.textContent = texto;
+      mensagem.style.color = erro ? "#b91c1c" : "#047857";
+    }
 
-            fetch("/usuarios", {
-                method: "POST",
-                headers: {"Content-Type": "application/json"},
-                body: JSON.stringify({usuario, senha, tipo})
-            })
+    async function requisicao(url, opcoes = {}) {
+      const resposta = await fetch(url, {
+        ...opcoes,
+        headers: { "Content-Type": "application/json", ...(opcoes.headers || {}) }
+      });
+      const dados = await resposta.json();
+      if (!resposta.ok) throw new Error(dados.erro || `Erro HTTP ${resposta.status}`);
+      return dados;
+    }
 
-            .then(res => res.json())
-            .then(dados => {
-                if (dados.erro) {
-                    alert("Erro: " + dados.erro);
-                } else {
-                    alert("Usuário cadastrado com sucesso!");
-                    document.getElementById("formUsuario").reset();
-                    carregarUsuarios();
-                }
-            });
+    document.getElementById("formUsuario").addEventListener("submit", async event => {
+      event.preventDefault();
+      const usuario = document.getElementById("usuario").value.trim();
+      const senha = document.getElementById("senha").value;
+      const tipo = document.getElementById("tipo").value;
+      try {
+        await requisicao("/usuarios", {
+          method: "POST",
+          body: JSON.stringify({ usuario, senha, tipo })
         });
+        event.currentTarget.reset();
+        informar("Usuário cadastrado com sucesso.");
+        await carregarUsuarios();
+      } catch (erro) {
+        informar(`Erro ao cadastrar usuário: ${erro.message}`, true);
+      }
+    });
 
-        // Carregar e listar os usuários cadastrados
-        function carregarUsuarios() {
-            fetch("/usuarios")
-            .then(res => res.json())
-            .then(usuarios => {
-                const div = document.getElementById("listarUsuarios");
-                div.innerHTML = "";
-
-                usuarios.forEach(u => {
-                    div.innerHTML += `
-                    <div class="card">
-                        <b>Usuário:</b> ${u.usuario} |
-                        <b>Setor:</b> ${u.tipo}
-                    </div>`;
-                });
-            });
+    async function carregarUsuarios() {
+      const lista = document.getElementById("listaUsuarios");
+      try {
+        const usuarios = await requisicao("/usuarios");
+        lista.replaceChildren();
+        if (!usuarios.length) {
+          lista.textContent = "Nenhum usuário cadastrado.";
+          return;
         }
+        usuarios.forEach(item => {
+          const card = document.createElement("div");
+          card.className = "user-card";
+          const nome = document.createElement("strong");
+          nome.textContent = item.usuario;
+          const perfil = document.createElement("span");
+          perfil.textContent = `Perfil: ${item.tipo}`;
+          card.append(nome, perfil);
+          lista.appendChild(card);
+        });
+      } catch (erro) {
+        lista.textContent = `Erro ao carregar usuários: ${erro.message}`;
+      }
+    }
 
-        // Carregar a lista automaticamente ao abrir a página
-        carregarUsuarios();
-    </script>
-</body>
-</html><!DOCTYPE html>
-<html lang="pt-br">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Administração de usuários</title>
-    <link rel="stylesheet" href="css/style.css">
-    <style>
-        .container { max-width: 950px; }
-        .admin-actions, .user-actions {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-        }
-        .user-card {
-            border: 1px solid #e2e8f0;
-            border-left: 4px solid #0056b3;
-            border-radius: 8px;
-            padding: 16px;
-            margin: 12px 0;
-            background: #f8fafc;
-        }
-        .user-card label {
-            display: block;
-            margin: 12px 0 6px;
-            font-size: 13px;
-            font-weight: 600;
-        }
-        .user-status { color: #64748b; font-size: 13px; }
-        .user-actions button { flex: 1; min-width: 150px; }
-        .user-card button:disabled { opacity: .55; cursor: not-allowed; }
-    </style>
-</head>
-<body>
-    <main class="container">
-        <section id="painelAdmin">
-            <div class="admin-actions">
-                <button type="button" onclick="irAlmoxarifado()">
-                    Acessar almoxarifado
-                </button>
-                <button type="button" onclick="sair()">Sair</button>
-            </div>
-            <h2>Administração de usuários</h2>
+    function irAlmoxarifado() {
+      window.location.assign("almoxerifado.html");
+    }
 
-            <form id="formUsuario">
-                <input type="text" id="usuario" placeholder="Usuário (login)"
-                    minlength="3" maxlength="40" pattern="[A-Za-z0-9._-]+"
-                    autocomplete="off" required>
-                <input type="password" id="senha" placeholder="Senha (mínimo 12 caracteres)"
-                    minlength="12" autocomplete="new-password" required>
-
-                <select id="tipo" required>
-                    <option value="">Selecione o perfil</option>
-                    <option value="almoxarifado">Almoxarifado</option>
-                    <option value="atendimento">Atendimento</option>
-                    <option value="triagem">Triagem</option>
-                    <option value="medico">Médico</option>
-                    <option value="admin">Administrador</option>
-                </select>
-                <button type="submit">Cadastrar usuário</button>
-            </form>
-
-            <p id="mensagem" role="status" aria-live="polite"></p>
-            <hr style="margin:25px 0;border:none;border-top:1px solid #ccc;">
-
-            <h3>Usuários cadastrados</h3>
-            <div id="listaUsuarios" aria-live="polite"></div>
-        </section>
-    </main>
-
-    <script>
-        let token = sessionStorage.getItem("hospitalar_token");
-        let usuarioAtual = {};
-
-        try {
-            usuarioAtual = JSON.parse(
-                sessionStorage.getItem("hospitalar_user") || "{}");
-        } catch (erro) {
-            console.error("Dados da sessão inválidos:", erro);
-        }
-
-        if (!token || usuarioAtual.tipo !== "admin") {
-            window.location.replace("index.html");
-        } else {
-            carregarUsuarios();
-        }
-
-        async function requisicao(url, opcoes = {}) {
-            const headers = new Headers(opcoes.headers || {});
-            if (token) headers.set("Authorization", `Bearer ${token}`);
-            if (opcoes.body && !headers.has("Content-Type")) {
-                headers.set("Content-Type", "application/json");
-            }
-
-            const resposta = await fetch(url, { ...opcoes, headers });
-            let dados;
-            try {
-                dados = await resposta.json();
-            } catch {
-                throw new Error("O servidor retornou uma resposta inválida.");
-            }
-
-            if (resposta.status === 401) {
-                sessionStorage.removeItem("hospitalar_token");
-                sessionStorage.removeItem("hospitalar_user");
-                token = null;
-                usuarioAtual = {};
-                window.location.replace("index.html");
-            }
-            if (!resposta.ok) {
-                throw new Error(dados.erro || `Erro HTTP ${resposta.status}`);
-            }
-            return dados;
-        }
-
-        function escaparHTML(valor) {
-            return String(valor ?? "").replace(/[&<>"']/g, caractere => ({
-                "&": "&amp;",
-                "<": "&lt;",
-                ">": "&gt;",
-                '"': "&quot;",
-                "'": "&#039;"
-            })[caractere]);
-        }
-
-        function informar(texto, erro = false) {
-            const mensagem = document.getElementById("mensagem");
-            mensagem.textContent = texto;
-            mensagem.style.color = erro ? "#991b1b" : "#065f46";
-        }
-
-        document.getElementById("formUsuario").addEventListener(
-            "submit", async event => {
-                event.preventDefault();
-                const usuario = document.getElementById("usuario").value.trim();
-                const senha = document.getElementById("senha").value;
-                const tipo = document.getElementById("tipo").value;
-
-                try {
-                    await requisicao("/usuarios", {
-                        method: "POST",
-                        body: JSON.stringify({ usuario, senha, tipo })
-                    });
-                    event.currentTarget.reset();
-                    informar("Usuário cadastrado com sucesso.");
-                    await carregarUsuarios();
-                } catch (erro) {
-                    informar(`Erro ao cadastrar usuário: ${erro.message}`, true);
-                }
-            });
-
-        async function carregarUsuarios() {
-            const lista = document.getElementById("listaUsuarios");
-            try {
-                const usuarios = await requisicao("/usuarios");
-                if (!Array.isArray(usuarios)) {
-                    throw new Error("Formato da lista de usuários inválido.");
-                }
-                lista.innerHTML = usuarios.length
-                    ? usuarios.map(item => `
-                        <div class="user-card" data-usuario="${escaparHTML(item.usuario)}">
-                            <strong>${escaparHTML(item.usuario)}</strong>
-                            <span class="user-status">
-                                ${item.ativo ? "Ativo" : "Desativado"}
-                            </span>
-                            <label>Perfil</label>
-                            <select class="perfilUsuario">
-                                ${["admin", "almoxarifado", "atendimento", "medico", "triagem"]
-                                    .map(tipo => `
-                                        <option value="${tipo}"
-                                            ${item.tipo === tipo ? "selected" : ""}>
-                                            ${escaparHTML(tipo)}
-                                        </option>
-                                    `).join("")}
-                            </select>
-                            <label>Redefinir senha (opcional, mínimo 12 caracteres)</label>
-                            <input class="novaSenha" type="password" minlength="12"
-                                autocomplete="new-password"
-                                placeholder="Deixe vazio para manter a senha">
-                            <div class="user-actions">
-                                <button type="button" data-acao="salvar">
-                                    Salvar alterações
-                                </button>
-                                <button type="button" data-acao="alternar"
-                                    ${item.usuario === usuarioAtual.usuario && item.ativo
-                                        ? "disabled title=\"Não é possível desativar a própria conta\""
-                                        : ""}>
-                                    ${item.ativo ? "Desativar" : "Reativar"}
-                                </button>
-                            </div>
-                        </div>
-                    `).join("")
-                    : "<p>Nenhum usuário cadastrado.</p>";
-            } catch (erro) {
-                lista.textContent = `Erro ao carregar usuários: ${erro.message}`;
-            }
-        }
-
-        document.getElementById("listaUsuarios").addEventListener(
-            "click", async event => {
-                const botao = event.target.closest("button[data-acao]");
-                if (!botao) return;
-
-                const cartao = botao.closest(".user-card");
-                const nomeUsuario = cartao.dataset.usuario;
-                const acao = botao.dataset.acao;
-
-                try {
-                    if (acao === "salvar") {
-                        const senha = cartao.querySelector(".novaSenha").value;
-                        const alteracoes = {
-                            tipo: cartao.querySelector(".perfilUsuario").value
-                        };
-                        if (senha) alteracoes.senha = senha;
-
-                        await requisicao(
-                            `/usuarios/${encodeURIComponent(nomeUsuario)}`,
-                            {
-                                method: "PATCH",
-                                body: JSON.stringify(alteracoes)
-                            });
-                        informar(`Alterações de ${nomeUsuario} salvas.`);
-                    } else {
-                        const usuario = (await requisicao("/usuarios"))
-                            .find(item => item.usuario === nomeUsuario);
-                        if (!usuario) throw new Error("Usuário não encontrado.");
-                        const ativo = !usuario.ativo;
-                        if (!ativo && !confirm(
-                            `Desativar "${nomeUsuario}"? O histórico será preservado.`
-                        )) return;
-
-                        await requisicao(
-                            `/usuarios/${encodeURIComponent(nomeUsuario)}`,
-                            {
-                                method: "PATCH",
-                                body: JSON.stringify({ ativo })
-                            });
-                        informar(ativo
-                            ? `Usuário ${nomeUsuario} reativado.`
-                            : `Usuário ${nomeUsuario} desativado.`);
-                    }
-                    await carregarUsuarios();
-                } catch (erro) {
-                    informar(`Erro ao atualizar usuário: ${erro.message}`, true);
-                }
-            });
-
-        function irAlmoxarifado() {
-            window.location.href = "almoxarifado.html";
-        }
-
-        async function sair() {
-            try {
-                await requisicao("/logout", { method: "POST" });
-            } catch (erro) {
-                console.error("Erro ao encerrar sessão:", erro);
-            } finally {
-                sessionStorage.removeItem("hospitalar_token");
-                sessionStorage.removeItem("hospitalar_user");
-                window.location.replace("index.html");
-            }
-        }
-    </script>
-<script src="admin-shortcut.js"></script>
+    function sair() {
+      sessionStorage.removeItem("hospitalar_token");
+      sessionStorage.removeItem("hospitalar_user");
+      localStorage.removeItem("hospitalar_user");
+      window.location.replace("index.html");
+    }
+  </script>
 </body>
 </html>

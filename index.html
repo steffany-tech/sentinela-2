@@ -18,10 +18,8 @@
     <form id="formLogin">
       <label for="usuario">Usuário</label>
       <input id="usuario" name="usuario" type="text" placeholder="Seu usuário" autocomplete="username" required>
-
       <label for="senha">Senha</label>
       <input id="senha" name="senha" type="password" placeholder="Sua senha" autocomplete="current-password" required>
-
       <p id="mensagem" class="message" role="status" aria-live="polite"></p>
       <button id="botaoEntrar" type="submit">Entrar</button>
     </form>
@@ -59,7 +57,12 @@
         };
         const destino = destinos[dados.tipo];
         if (!destino) throw new Error("Perfil de usuário não reconhecido.");
-        window.location.href = destino;
+
+        // Keep the authenticated profile available to pages that verify permissions.
+        sessionStorage.setItem("hospitalar_user", JSON.stringify(dados));
+        sessionStorage.setItem("hospitalar_token", `sessao-${Date.now()}`);
+        localStorage.setItem("hospitalar_user", JSON.stringify(dados));
+        window.location.assign(destino);
       } catch (erro) {
         mensagem.textContent = erro.message || "Erro de conexão. Tente novamente.";
       } finally {
@@ -68,11 +71,10 @@
       }
     });
 
-    // Atalho de manutenção: Ctrl + Alt + A abre a administração.
     window.addEventListener("keydown", event => {
       if (event.ctrlKey && event.altKey && event.key.toLowerCase() === "a") {
         event.preventDefault();
-        window.location.href = "admin.html";
+        window.location.assign("admin.html");
       }
     });
   </script>
